@@ -1,0 +1,14 @@
+{
+  "name": "whatsapp-agent",
+  "version": "1.0.0",
+  "description": "Daily WhatsApp AI agent",
+  "main": "whatsapp/send.js",
+  "scripts": {
+    "auth": "node whatsapp/auth.js",
+    "send": "node whatsapp/send.js"
+  },
+  "dependencies": {
+    "whatsapp-web.js": "^1.23.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

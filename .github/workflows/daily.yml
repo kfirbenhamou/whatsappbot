@@ -1,0 +1,45 @@
+name: Daily WhatsApp Message
+
+on:
+  # Runs every day at 08:00 Israel time (06:00 UTC, UTC+2 in winter / UTC+3 in summer)
+  # Adjust the hour if needed for daylight saving time.
+  schedule:
+    - cron: '0 6 * * *'
+
+  # Allows manual trigger from GitHub Actions UI for testing
+  workflow_dispatch:
+
+jobs:
+  send-message:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Restore WhatsApp session
+        run: |
+          mkdir -p .wwebjs_auth
+          echo "${{ secrets.WA_SESSION_B64 }}" | base64 -d | tar -xzf - -C .
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Node.js dependencies
+        run: npm ci
+
+      - name: Run agent
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          WIFE_PHONE: ${{ secrets.WIFE_PHONE }}
+        run: python agent/main.py
