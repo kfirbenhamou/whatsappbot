@@ -31,14 +31,24 @@ client.on('qr', () => {
     process.exit(1);
 });
 
+client.on('loading_screen', (percent, message) => {
+    console.log(`⏳ Loading WhatsApp... ${percent}% — ${message}`);
+});
+
+client.on('authenticated', () => {
+    console.log('🔐 Authenticated with WhatsApp session.');
+});
+
 client.on('ready', async () => {
+    console.log('✅ Client is ready. Sending message...');
     try {
         await client.sendMessage(phone, message);
-        console.log(`✅ Message sent to ${phone}`);
+        console.log(`✅ Message sent to ${phone}: "${message}"`);
     } catch (err) {
         console.error('❌ Failed to send message:', err.message);
         process.exitCode = 1;
     } finally {
+        console.log('🔌 Disconnecting...');
         await client.destroy();
         process.exit(process.exitCode || 0);
     }
@@ -49,4 +59,9 @@ client.on('auth_failure', (msg) => {
     process.exit(1);
 });
 
+client.on('disconnected', (reason) => {
+    console.error('❌ Client disconnected:', reason);
+});
+
+console.log('🚀 Initializing WhatsApp client...');
 client.initialize();

@@ -14,6 +14,7 @@ import subprocess
 import sys
 from datetime import date
 
+import httpx
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -26,7 +27,7 @@ def generate_message() -> str:
     if not api_key:
         raise EnvironmentError("OPENAI_API_KEY environment variable is not set.")
 
-    client = OpenAI(api_key=api_key)
+    client = OpenAI(api_key=api_key, http_client=httpx.Client(verify=False))
 
     today = date.today().strftime("%A, %B %d %Y")  # e.g. "Sunday, March 22 2026"
 
