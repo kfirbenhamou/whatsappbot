@@ -12,6 +12,7 @@ on:
 jobs:
   send-message:
     runs-on: ubuntu-latest
+    environment: bot
 
     steps:
       - name: Checkout repository
