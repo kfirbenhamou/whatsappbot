@@ -1,16 +1,16 @@
 """
-Daily WhatsApp AI Agent
+Daily Telegram AI Agent
 -----------------------
 Generates a personalised daily message with OpenAI gpt-4o-mini and
-sends it to your wife via the Node.js whatsapp-web.js bridge.
+sends it to your Telegram account via the Telegram Bot API.
 
 Required environment variables (set in .env locally or GitHub Secrets in CI):
-  OPENAI_API_KEY  - your OpenAI API key
-  WIFE_PHONE      - recipient in WhatsApp format, e.g. "972501234567@c.us"
+  OPENAI_API_KEY       - your OpenAI API key
+  TELEGRAM_BOT_TOKEN   - token from @BotFather
+  TELEGRAM_CHAT_ID     - your Telegram user/chat ID
 """
 
 import os
-import subprocess
 import sys
 from datetime import date
 
@@ -37,7 +37,7 @@ def generate_message() -> str:
             {
                 "role": "system",
                 "content": (
-                    "You write short, warm, creative daily WhatsApp messages from a husband to his wife. "
+                    "You write short, warm, creative daily messages from a husband to his wife. "
                     "Each message should feel personal and unique — never generic. "
                     "Keep it under 3 sentences. No emojis unless they feel natural. "
                     "Never start two messages the same way."
@@ -55,25 +55,30 @@ def generate_message() -> str:
     return response.choices[0].message.content.strip()
 
 
-def send_via_bridge(message: str) -> None:
-    """Pass the message to the Node.js whatsapp-web.js bridge."""
-    phone = os.getenv("WIFE_PHONE")
-    if not phone:
-        raise EnvironmentError("WIFE_PHONE environment variable is not set.")
+def send_via_telegram(message: str) -> None:
+    """Send the message to a Telegram chat via the Bot API."""
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
-    env = os.environ.copy()
-    env["MESSAGE"] = message
-    env["WIFE_PHONE"] = phone
+    if not token:
+        raise EnvironmentError("TELEGRAM_BOT_TOKEN environment variable is not set.")
+    if not chat_id:
+        raise EnvironmentError("TELEGRAM_CHAT_ID environment variable is not set.")
 
-    result = subprocess.run(
-        ["node", "whatsapp/send.js"],
-        env=env,
-        capture_output=False,  # stream stdout/stderr directly so CI logs show it
+    resp = httpx.post(
+        f"https://api.telegram.org/bot{token}/sendMessage",
+        json={"chat_id": chat_id, "text": message},
+        verify=False,  # bypasses corporate proxy SSL inspection
+        timeout=30,
     )
 
-    if result.returncode != 0:
-        print(f"Bridge exited with code {result.returncode}", file=sys.stderr)
-        sys.exit(result.returncode)
+    try:
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        print(f"Telegram API error: {resp.text}", file=sys.stderr)
+        raise e
+
+    print(f"Message sent to chat {chat_id} via Telegram.")
 
 
 def main() -> None:
@@ -81,8 +86,8 @@ def main() -> None:
     message = generate_message()
     print(f"Message: {message}")
 
-    print("Sending via WhatsApp bridge...")
-    send_via_bridge(message)
+    print("Sending via Telegram...")
+    send_via_telegram(message)
 
     print("Done.")
 

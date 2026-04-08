@@ -1,4 +1,4 @@
-name: Daily WhatsApp Message
+name: Daily Telegram Message
 
 on:
   # Runs every day at 08:00 Israel time (06:00 UTC, UTC+2 in winter / UTC+3 in summer)
@@ -18,9 +18,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Restore WhatsApp session
-        run: echo "${{ secrets.WA_SESSION_B64 }}" | base64 -d | tar -xzf -
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -29,16 +26,9 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install Node.js dependencies
-        run: npm ci
-
       - name: Run agent
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          WIFE_PHONE: ${{ secrets.WIFE_PHONE }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python agent/main.py
