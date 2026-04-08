@@ -5,10 +5,11 @@
  *
  * Environment variables:
  *   MESSAGE     - the text to send
- *   WIFE_PHONE  - recipient in WhatsApp format, e.g. "972501234567@c.us"
+ *   WIFE_PHONE  - recipient in WhatsApp format, e.g. "972501234567@s.whatsapp.net"
  */
 
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const pino = require('pino');
 
 const phone   = process.env.WIFE_PHONE;
 const message = process.env.MESSAGE;
@@ -18,51 +19,51 @@ if (!phone || !message) {
     process.exit(1);
 }
 
-const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: {
-        headless: true,
-        protocolTimeout: 120000,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    }
-});
+async function main() {
+    const { state, saveCreds } = await useMultiFileAuthState('./auth_info_baileys');
 
-client.on('qr', () => {
-    console.error('❌ Session expired — re-run auth.js locally and update WA_SESSION_B64 secret.');
-    process.exit(1);
-});
+    const sock = makeWASocket({
+        auth: state,
+        printQRInTerminal: false,
+        logger: pino({ level: 'silent' })
+    });
 
-client.on('loading_screen', (percent, message) => {
-    console.log(`⏳ Loading WhatsApp... ${percent}% — ${message}`);
-});
+    sock.ev.on('creds.update', saveCreds);
 
-client.on('authenticated', () => {
-    console.log('🔐 Authenticated with WhatsApp session.');
-});
+    await new Promise((resolve, reject) => {
+        sock.ev.on('connection.update', async ({ connection, qr, lastDisconnect }) => {
+            if (qr) {
+                reject(new Error('❌ Session expired — re-run npm run auth and update WA_SESSION_B64 secret.'));
+                return;
+            }
 
-client.on('ready', async () => {
-    console.log('✅ Client is ready. Sending message...');
-    try {
-        await client.sendMessage(phone, message);
-        console.log(`✅ Message sent to ${phone}: "${message}"`);
-    } catch (err) {
-        console.error('❌ Failed to send message:', err.message);
-        process.exitCode = 1;
-    } finally {
-        console.log('🔌 Disconnecting...');
-        await client.destroy();
-        process.exit(process.exitCode || 0);
-    }
-});
+            if (connection === 'open') {
+                console.log('🔐 Connected to WhatsApp. Sending message...');
+                try {
+                    await sock.sendMessage(phone, { text: message });
+                    console.log(`✅ Message sent to ${phone}: "${message}"`);
+                    await sock.end();
+                    resolve();
+                } catch (err) {
+                    reject(err);
+                }
+            }
 
-client.on('auth_failure', (msg) => {
-    console.error('❌ Authentication failed:', msg);
-    process.exit(1);
-});
+            if (connection === 'close') {
+                const statusCode = lastDisconnect?.error?.output?.statusCode;
+                if (statusCode === DisconnectReason.loggedOut) {
+                    reject(new Error('❌ Logged out — re-run npm run auth and update WA_SESSION_B64 secret.'));
+                } else {
+                    reject(new Error(`❌ Connection closed: ${lastDisconnect?.error?.message}`));
+                }
+            }
+        });
+    });
+}
 
-client.on('disconnected', (reason) => {
-    console.error('❌ Client disconnected:', reason);
-});
-
-console.log('🚀 Initializing WhatsApp client...');
-client.initialize();
+main()
+    .then(() => process.exit(0))
+    .catch(err => {
+        console.error(err.message);
+        process.exit(1);
+    });

@@ -1,42 +1,44 @@
 /**
- * Run this ONCE locally to authenticate with WhatsApp.
- * It will display a QR code in the terminal — scan it with your WhatsApp.
- * The session is saved to .wwebjs_auth/ and you then base64-encode it
- * to store as a GitHub Actions secret (WA_SESSION_B64).
+ * One-time authentication script.
  *
- * Usage:
- *   npm run auth
+ * Usage: npm run auth
+ *   1. A QR code will appear in the terminal.
+ *   2. Open WhatsApp on your phone → Linked Devices → Link a Device.
+ *   3. Scan the QR code.
+ *   4. Wait for "Authenticated!" then press Ctrl+C.
+ *   5. Run: bash scripts/export_session.sh
  *
- * After the "Client is ready!" message appears, press Ctrl+C.
- * Then run:
- *   tar -czf session.tar.gz .wwebjs_auth/
- *   base64 -i session.tar.gz | pbcopy   (macOS — copies to clipboard)
+ * The session is saved to ./auth_info_baileys/ and reused by send.js.
  */
 
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
+const pino = require('pino');
 
-const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: {
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    }
-});
+async function main() {
+    const { state, saveCreds } = await useMultiFileAuthState('./auth_info_baileys');
 
-client.on('qr', (qr) => {
-    console.log('\n📱 Scan this QR code with WhatsApp on your phone:\n');
-    qrcode.generate(qr, { small: true });
-});
+    const sock = makeWASocket({
+        auth: state,
+        printQRInTerminal: false,
+        logger: pino({ level: 'silent' })
+    });
 
-client.on('ready', () => {
-    console.log('\n✅ Client is ready! Session saved to .wwebjs_auth/');
-    console.log('You can now Ctrl+C and follow the instructions at the top of this file.\n');
-});
+    sock.ev.on('creds.update', saveCreds);
 
-client.on('auth_failure', (msg) => {
-    console.error('❌ Authentication failed:', msg);
-    process.exit(1);
-});
+    sock.ev.on('connection.update', ({ connection, qr }) => {
+        if (qr) {
+            console.log('\n📱 Scan this QR code in WhatsApp → Linked Devices → Link a Device:\n');
+            qrcode.generate(qr, { small: true });
+        }
+        if (connection === 'open') {
+            console.log('\n✅ Authenticated! Session saved to ./auth_info_baileys/');
+            console.log('👉 Press Ctrl+C, then run: bash scripts/export_session.sh\n');
+        }
+        if (connection === 'close') {
+            console.log('🔌 Connection closed. If this was unexpected, try again.');
+        }
+    });
+}
 
-client.initialize();
+main().catch(console.error);

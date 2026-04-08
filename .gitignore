@@ -2,5 +2,5 @@
 node_modules/
 __pycache__/
 *.pyc
-.wwebjs_auth/
+auth_info_baileys/
 session.json

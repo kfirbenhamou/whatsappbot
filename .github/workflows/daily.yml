@@ -19,12 +19,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Restore WhatsApp session
-        run: |
-          gh release download session-v1 --repo kfirbenhamou/whatsappbot --pattern "wa_min.tar.gz" --output wa_min.tar.gz
-          tar -xzf wa_min.tar.gz
-          rm wa_min.tar.gz
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "${{ secrets.WA_SESSION_B64 }}" | base64 -d | tar -xzf -
 
       - name: Set up Python
         uses: actions/setup-python@v5
